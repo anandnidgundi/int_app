@@ -1,0 +1,46 @@
+<?php
+
+use CodeIgniter\Router\RouteCollection;
+
+/**
+ * @var RouteCollection $routes
+ */
+$routes->get('/', 'Home::index');
+
+$routes->group("api",['filter' => 'cors:api'], function ($routes) {
+    $routes->post("register", "Register::index");
+	$routes->match(['post', 'options'],"login", "Login::index");
+	$routes->match(['get', 'options'],"profile", "Profile::index", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"logout", "Logout::index"); // Removed 'api/' prefix here
+    $routes->match(['get', 'options'],"users", "User::index", ['filter' => 'authFilter']);
+    $routes->match(['get', 'options'],"getempcodes", "User::getEmpCodes", ['filter' => 'authFilter']);
+	$routes->match(['get', 'options'],"cities", "City::index");
+	 
+    $routes->match(['post', 'options'],"postadvance", "Advance::post", ['filter' => 'authFilter']);
+    $routes->match(['get', 'options'],"getadvance", "Advance::index", ['filter' => 'authFilter']);
+    $routes->match(['put', 'options'],'updateAdvanceForm/(:num)', 'Advance::updateAdvanceForm/$1', ['filter' => 'authFilter']);
+	$routes->match(['put', 'options'],'updateSettlementForm/(:num)', 'Settlement::updateSettlementForm/$1', ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"postSettlement", "Settlement::post", ['filter' => 'authFilter']);
+	$routes->match(['get', 'options'],"getsettlement", "Settlement::index", ['filter' => 'authFilter']);
+	$routes->match(['get', 'options'],"getTravelDesk", "TravelDesk::index", ['filter' => 'authFilter']);
+	$routes->match(['post', 'options'],"postTravelDesk", "TravelDesk::post", ['filter' => 'authFilter']);
+	$routes->match(['post', 'options'],"postHotelInfo", "HotelInfo::post", ['filter' => 'authFilter']);
+	$routes->match(['get', 'options'],"getHotelInfo", "HotelInfo::index", ['filter' => 'authFilter']);
+	
+	 
+    $routes->match(['post', 'options'],"states", "States::index" , ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"addNewState", "States::addNewState", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"editState", "States::editState", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"getStateDetails", "States::getStateDetails", ['filter' => 'authFilter']);
+
+    $routes->match(['post', 'options'],"cities", "City::index", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"addCityType", "City::addCityType", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"updateCityType", "City::updateCityType", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"getCityType", "City::getCityType", ['filter' => 'authFilter']);
+
+    $routes->match(['post', 'options'],"getDiemList", "Diem::index", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"addDiem", "Diem::addDiem", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"editDiem", "Diem::editDiem", ['filter' => 'authFilter']);
+    $routes->match(['post', 'options'],"getDiemDetails", "Diem::getDiemDetails", ['filter' => 'authFilter']);
+	$routes->match(['post', 'options'],"getDiem", "Diem::getDiemDetails", ['filter' => 'authFilter']);
+});

@@ -1,0 +1,49 @@
+<?php
+ 
+namespace App\Controllers;
+ 
+use App\Controllers\BaseController;
+use CodeIgniter\API\ResponseTrait;
+use App\Models\UserModel;
+ 
+class User extends BaseController
+{
+    use ResponseTrait;
+     
+    public function index()
+    {
+        $users = new UserModel;
+
+        // Check if emp_code is provided in the request
+        $empCode = $this->request->getVar('emp_code');
+
+        if ($empCode) {
+            // Fetch a single user by emp_code
+            $user = $users->where('emp_code', $empCode)->first();
+
+            if (!$user) {
+                return $this->respond(['error' => 'User not found'], 404);
+            }
+
+            return $this->respond(['user' => $user,'status' => true], 200);
+        }
+
+        // If emp_code is not provided, return all users
+        return $this->respond(['users' => $users->findAll(),'status' => true], 200);
+    }
+
+    public function getEmpCodes()
+    {
+        $users = new UserModel;
+
+        // Retrieve only the emp_code column
+        $empCodes = $users->select('emp_code')->findAll();
+
+        // Check if any emp_codes were found
+        if (empty($empCodes)) {
+            return $this->respond(['error' => 'No emp_codes found'], 404);
+        }
+
+        return $this->respond(['emp_codes' => $empCodes], 200);
+    }
+}

@@ -1,0 +1,22 @@
+<?php
+
+namespace App\Models;
+
+use CodeIgniter\Model;
+
+class ShiftListsModel extends Model
+{
+     protected $table = 'shiftslist';
+     protected $primaryKey = 'id';
+     protected $allowedFields = [
+          'ShiftName',
+          'ShiftStart',
+          'ShiftEnd',
+          'WorkingsHoursToBeConsiderdFullDay',
+          'WorkingsHoursToBeConsiderdHalfDay',
+          'emp_type',
+          'split_shift',
+     ];
+     protected $returnType = 'array';
+     public $timestamps = false;
+}
