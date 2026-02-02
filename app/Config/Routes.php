@@ -893,7 +893,12 @@ $routes->group('api', ['filter' => 'cors'], function ($routes) {
      // totalSessions
      $routes->match(['GET', 'OPTIONS'], 'totalSessions', 'NewUser::totalSessions', ['filter' => 'jwt']);
      $routes->match(['GET', 'OPTIONS'], 'total-sessions', 'NewUser::totalSessions', ['filter' => 'jwt']);
+     // getEmployeesWithoutUsers
+     $routes->match(['GET', 'OPTIONS'], 'getEmployeesWithoutUsers', 'NewUser::getEmployeesWithoutUsers', ['filter' => 'jwt']);
+     // createUsersForMissingEmployees
+     $routes->match(['POST', 'OPTIONS'], 'createUsersForMissingEmployees', 'NewUser::createUsersForMissingEmployees', ['filter' => 'jwt']);
 
+     $routes->match(['POST', 'OPTIONS'], 'resetTravelMasterPasswords', 'NewUser::resetTravelMasterPasswords', ['filter' => 'jwt']);
 
      // Designations Routes
      $routes->match(['GET', 'OPTIONS'], 'getDesignations', 'Designations::getDesignations', ['filter' => 'jwt']);

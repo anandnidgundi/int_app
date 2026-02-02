@@ -106,7 +106,6 @@ class NewEmployeeMasterModel extends Model
                'bank_name'               => '',
                'bank_acnum'              => '',
                'ifsc_code'               => '',
-               'password'                => md5('Special#2'),   // or a safe default hash if required
                'failed_attempts'         => 0,
                'session_token'           => '',
                'session_admin_token'     => '',

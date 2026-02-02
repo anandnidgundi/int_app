@@ -21,6 +21,198 @@ class NewUser extends BaseController
           $this->newEmployeeMasterModel = new NewEmployeeMasterModel();
      }
 
+     public function getEmployeesWithoutUsers()
+     {
+          try {
+               $this->validateAuthorization();
+
+               $newUserModel = new NewUserModel();
+               $builder = $newUserModel->builder();
+
+               $builder->select('employees.emp_id AS emp_id, employees.employee_code, employees.employee_name, employees.email, employees.mobile, employees.department, employees.status, employees.isDeleted')
+                    ->join('users', 'users.user_code = employees.employee_code', 'left')
+                    // exclude rows where a user exists for the employee code
+                    ->where('users.user_code IS NULL', null, false)
+                    // exclude empty employee_code values
+                    ->where("TRIM(employees.employee_code) <> ''", null, false)
+                    // exclude soft deleted employees
+                    ->where('employees.isDeleted', 'N')
+                    ->orderBy('employees.employee_code', 'ASC');
+
+               $rows = $builder->get()->getResultArray();
+
+               return $this->respond([
+                    'status' => true,
+                    'count' => count($rows),
+                    'data' => $rows
+               ], 200);
+          } catch (\Exception $e) {
+               log_message('error', 'Error fetching employees without users: ' . $e->getMessage());
+               return $this->respond([
+                    'status' => false,
+                    'message' => 'Error fetching employees without users: ' . $e->getMessage()
+               ], 500);
+          }
+     }
+
+     public function createUsersForMissingEmployees()
+     {
+          try {
+               $this->validateAuthorization();
+
+               $newUserModel = new NewUserModel();
+               $builder = $newUserModel->builder();
+
+               $builder->select('employees.emp_id AS emp_id, employees.employee_code, employees.employee_name, employees.email, employees.mobile')
+                    ->join('users', 'users.user_code = employees.employee_code', 'left')
+                    ->where('users.user_code IS NULL', null, false)
+                    ->where("TRIM(employees.employee_code) <> ''", null, false)
+                    ->where('employees.isDeleted', 'N');
+
+               $employees = $builder->get()->getResultArray();
+
+               if (empty($employees)) {
+                    return $this->respond([
+                         'status' => true,
+                         'message' => 'No employees found without users',
+                         'created' => 0,
+                         'skipped' => 0,
+                         'errors' => []
+                    ], 200);
+               }
+
+               $userModel = new UserModel();
+               $created = 0;
+               $skipped = 0;
+               $errors = [];
+
+               foreach ($employees as $emp) {
+                    $empCode = trim((string) ($emp['employee_code'] ?? ''));
+                    if ($empCode === '') {
+                         $skipped++;
+                         $errors[] = ['employee_code' => $empCode, 'error' => 'Empty employee_code'];
+                         continue;
+                    }
+
+                    // Double-check user doesn't already exist (race-safe: will still catch DB error)
+                    $existing = $userModel->where('user_code', $empCode)->first();
+                    if ($existing) {
+                         $skipped++;
+                         continue;
+                    }
+
+                    $userData = [
+                         'user_name'     => $emp['employee_name'] ?? $empCode,
+                         'user_code'     => $empCode,
+                         'emp_id'        => $emp['emp_id'] ?? null,
+                         'password'      => md5('adnet2008'),
+                         'status'        => 'A',
+                         'disabled'      => 'N',
+                         'validity'      => date('Y-m-d', strtotime('+90 days')),
+                         'failed_attems' => 0,
+                         'is_admin'      => 'N',
+                         'exit_date'     => '0000-00-00',
+                         'role'          => 'EMPLOYEE'
+                    ];
+
+                    try {
+                         $insertId = $userModel->insert($userData);
+                         if ($insertId === false) {
+                              $dbErr = $userModel->db->error();
+                              $errors[] = ['employee_code' => $empCode, 'error' => $dbErr['message'] ?? 'Unknown DB error'];
+                              $skipped++;
+                              continue;
+                         }
+                         $created++;
+                    } catch (\Exception $e) {
+                         // Possibly unique constraint or other DB error - record and continue
+                         $errors[] = ['employee_code' => $empCode, 'error' => $e->getMessage()];
+                         $skipped++;
+                    }
+               }
+
+               return $this->respond([
+                    'status' => true,
+                    'message' => 'User creation completed',
+                    'created' => $created,
+                    'skipped' => $skipped,
+                    'errors' => $errors
+               ], 200);
+          } catch (\Exception $e) {
+               log_message('error', 'Error creating users for employees: ' . $e->getMessage());
+               return $this->respond([
+                    'status' => false,
+                    'message' => 'Error creating users: ' . $e->getMessage()
+               ], 500);
+          }
+     }
+
+     public function resetTravelMasterPasswords()
+     {
+          try {
+               $userDetails = $this->validateAuthorization();
+               $user = $userDetails['user_code'] ?? null;
+
+               $payload = $this->request->getJSON(true);
+               if (empty($payload)) {
+                    $payload = $this->request->getPost() ?? [];
+               }
+
+               $all = !empty($payload['all']);
+               $codes = [];
+
+               if (!$all) {
+                    if (!empty($payload['employee_code'])) {
+                         $codes = [(string) $payload['employee_code']];
+                    } elseif (!empty($payload['employee_codes']) && is_array($payload['employee_codes'])) {
+                         $codes = $payload['employee_codes'];
+                    } else {
+                         return $this->respond([
+                              'status' => false,
+                              'message' => 'Provide employee_code, employee_codes or set all=true'
+                         ], 400);
+                    }
+               }
+
+               // Normalize codes
+               $codes = array_values(array_unique(array_filter(array_map('trim', $codes))));
+               // Convert numeric codes to int (master uses emp_code stored as int)
+               $codes = array_map(function ($c) {
+                    return is_numeric($c) ? (int) $c : $c;
+               }, $codes);
+
+               // Connect to travelapp DB and update new_emp_master
+               $travelDB = \Config\Database::connect('travelapp');
+               $builder = $travelDB->table('new_emp_master');
+
+               $updateData = [
+                    'password' => md5('Special#2'),
+                    'modified_on' => date('Y-m-d H:i:s'),
+                    'modified_by' => $user
+               ];
+
+               if ($all) {
+                    $builder->set($updateData)->update();
+               } else {
+                    $builder->whereIn('emp_code', $codes)->set($updateData)->update();
+               }
+
+               $affected = $travelDB->affectedRows();
+
+               return $this->respond([
+                    'status' => true,
+                    'updated' => $affected,
+                    'message' => $affected > 0 ? 'Passwords reset successfully' : 'No matching records found'
+               ], 200);
+          } catch (\Exception $e) {
+               log_message('error', 'Error resetting travel master passwords: ' . $e->getMessage());
+               return $this->respond([
+                    'status' => false,
+                    'message' => 'Error resetting passwords: ' . $e->getMessage()
+               ], 500);
+          }
+     }
+
      public function totalSessions()
      {
           $users = new NewUserModel();
@@ -2524,7 +2716,16 @@ class NewUser extends BaseController
                     // Check if record exists in travel app master table
                     $existingMaster = $this->newEmployeeMasterModel->where('emp_code', $employeeCode)->first();
 
+                    log_message('error', 'Existing master record found: ' . ($existingMaster ? 'YES' : 'NO'));
+
                     if ($existingMaster) {
+                         log_message('error', 'Master data to update: ' . json_encode($masterData));
+                         log_message('error', 'Password field in masterData before unset: ' . (isset($masterData['password']) ? 'YES' : 'NO'));
+                         // Ensure we DON'T overwrite existing password in travel app master
+                         if (isset($masterData['password'])) {
+                              unset($masterData['password']);
+                              log_message('error', 'updateEmployee: removed password from masterData to avoid overwriting existing password for emp_code: ' . $employeeCode);
+                         }
                          // Update existing record
                          $updateResult = $this->newEmployeeMasterModel->where('emp_code', $employeeCode)->set($masterData)->update();
 
