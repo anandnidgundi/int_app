@@ -8,7 +8,6 @@ use App\Models\NewUserModel;        // employees table
 use App\Models\LeaveModel;          // leave_requests
 use App\Models\DoctorsShiftMasterModel;
 use App\Models\DutyRosterModel;
-use App\Models\SufalamLoginModel;
 
 class HodController extends BaseController
 {
@@ -20,7 +19,6 @@ class HodController extends BaseController
      protected $leaveModel;
      protected $doctorsShiftMasterModel;
      protected $dutyRosterModel;
-     protected $sufalamLoginModel;
 
      public function __construct()
      {
@@ -35,7 +33,6 @@ class HodController extends BaseController
           $this->leaveModel = new LeaveModel();
           $this->doctorsShiftMasterModel = new DoctorsShiftMasterModel();
           $this->dutyRosterModel = new DutyRosterModel();
-          $this->sufalamLoginModel = new SufalamLoginModel();
      }
 
      /**
@@ -305,7 +302,7 @@ class HodController extends BaseController
                $selectedOutTime = $minutesToHHMM($selectedOutMin);
 
                $employeesQuery = $this->employeeModel
-                    ->select('emp_id, employee_code, employee_name, emp_type, city_name, location_name, mobile, work_type')
+                    ->select('emp_id, employee_code, employee_name, emp_type, city_name, location_name, mobile')
                     ->where('status', 'A')
                     ->where('isDeleted', 'N')
                     ->where('emp_type', 'DOCTOR');
@@ -348,57 +345,6 @@ class HodController extends BaseController
                $empCodes = array_column($employees, 'employee_code');
                $empIds   = array_column($employees, 'emp_id');
 
-               $sufalamLoginModel = null;
-               if (property_exists($this, 'sufalamLoginModel') && $this->sufalamLoginModel instanceof SufalamLoginModel) {
-                    $sufalamLoginModel = $this->sufalamLoginModel;
-               }
-               if (!$sufalamLoginModel) {
-                    $sufalamLoginModel = new SufalamLoginModel();
-               }
-
-               // Fetch latest Sufalam login/out row per employee for selected date.
-               $sufalamRows = $sufalamLoginModel
-                    ->select('id, LogInOutDetailId, UserId, LogInOutStatus, CreatedDate')
-                    ->whereIn('UserId', $empCodes)
-                    ->where('CreatedDate >=', $startDateTime)
-                    ->where('CreatedDate <', $endDateTime)
-                    ->orderBy('UserId', 'ASC')
-                    ->orderBy('CreatedDate', 'DESC')
-                    ->orderBy('id', 'DESC')
-                    ->findAll();
-
-               $lastSufalamByUser = [];
-               $sufalamHistoryByUser = [];
-               foreach ($sufalamRows as $row) {
-                    $userKey = (string) ($row['UserId'] ?? '');
-                    if ($userKey === '') {
-                         continue;
-                    }
-
-                    if (!isset($lastSufalamByUser[$userKey])) {
-                         $lastSufalamByUser[$userKey] = $row;
-                    }
-
-                    $sufalamHistoryByUser[$userKey][] = [
-                         'id' => $row['id'] ?? null,
-                         'login_out_detail_id' => $row['LogInOutDetailId'] ?? null,
-                         'user_id' => $row['UserId'] ?? null,
-                         'login_out_status' => $row['LogInOutStatus'] ?? null,
-                         'created_date' => $row['CreatedDate'] ?? null,
-                    ];
-               }
-
-               foreach ($sufalamHistoryByUser as &$historyRows) {
-                    usort($historyRows, function ($a, $b) {
-                         $dateCmp = strcmp((string) ($a['created_date'] ?? ''), (string) ($b['created_date'] ?? ''));
-                         if ($dateCmp !== 0) {
-                              return $dateCmp;
-                         }
-                         return ((int) ($a['id'] ?? 0)) <=> ((int) ($b['id'] ?? 0));
-                    });
-               }
-               unset($historyRows);
-
                $attendanceRows = $this->payrollDb->table('new_punch_list')
                     ->select('UserId, LogDate')
                     ->whereIn('UserId', $empCodes)
@@ -436,9 +382,6 @@ class HodController extends BaseController
                $details = [];
 
                foreach ($employees as $emp) {
-                    $empCodeKey = (string) ($emp['employee_code'] ?? '');
-                    $lastSufalam = $lastSufalamByUser[$empCodeKey] ?? null;
-
                     $shift = $dutyMap[$emp['emp_id']] ?? null;
 
                     $shiftName = $shift['doc_shift_name'] ?? null;
@@ -498,16 +441,6 @@ class HodController extends BaseController
                     if ($status === 'present') $presentCount++;
                     else $absentCount++;
 
-                    $latestSufalamRecord = $lastSufalam ? [
-                         'id' => $lastSufalam['id'] ?? null,
-                         'login_out_detail_id' => $lastSufalam['LogInOutDetailId'] ?? null,
-                         'user_id' => $lastSufalam['UserId'] ?? null,
-                         'login_out_status' => $lastSufalam['LogInOutStatus'] ?? null,
-                         'created_date' => $lastSufalam['CreatedDate'] ?? null,
-                    ] : null;
-
-                    $fullSufalamHistory = $sufalamHistoryByUser[$empCodeKey] ?? [];
-
                     $details[] = [
                          'emp_id' => $emp['emp_id'],
                          'employee_code' => $emp['employee_code'],
@@ -519,14 +452,7 @@ class HodController extends BaseController
                          'status_date' => $selectedDate,
                          'punch_in' => $punchIn,
                          'punch_out' => $punchOut,
-                         // Keep full selected-date history in last_sufalam_record (array) as requested.
-                         'last_sufalam_record' => $fullSufalamHistory,
-                         // Explicit latest record for easy badge rendering on frontend.
-                         'last_sufalam_latest_record' => $latestSufalamRecord,
-                         // Retained for backward compatibility with existing consumers.
-                         'sufalam_history' => $fullSufalamHistory,
                          'emp_type' => 'DOCTOR',
-                         'work_type' => $emp['work_type'] ?? null,
                          'shift_details' => [
                               'shift_name' => $shiftName,
                               'in_time' => $shiftIn,

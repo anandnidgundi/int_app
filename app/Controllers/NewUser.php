@@ -513,6 +513,7 @@ class NewUser extends BaseController
                'emergency_contact',
                'split_shift',
                'resignation_reason',
+               'work_type',
           ];
 
           $filteredData = [];

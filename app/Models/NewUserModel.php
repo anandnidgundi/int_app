@@ -75,6 +75,7 @@ class NewUserModel extends Model
           'emergency_contact',
           'split_shift',
           'resignation_reason',
+          'work_type'
 
      ];
 

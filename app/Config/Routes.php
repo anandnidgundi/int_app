@@ -866,6 +866,8 @@ $routes->group('api', ['filter' => 'cors'], function ($routes) {
 
      $routes->match(['GET', 'OPTIONS'], 'doctorSummary', 'HodController::doctorSummary', ['filter' => 'jwt']);
 
+     $routes->match(['GET', 'OPTIONS'], 'doctorCustomSummary', 'HodController::doctorCustomSummary', ['filter' => 'jwt']);
+
      // Leave Management APIs
      $routes->match(['GET', 'OPTIONS'], 'leave-balances/all', 'LeaveManagementController::getAllEmployeeBalances', ['filter' => 'jwt']);
      $routes->match(['GET', 'OPTIONS'], 'leave-balances/(:any)', 'LeaveManagementController::getLeaveBalances/$1', ['filter' => 'jwt']);
